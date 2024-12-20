@@ -194,38 +194,47 @@ unique_ptr<FunctionData> ReadSheetBind(ClientContext &context, TableFunctionBind
     json cleanJson = parseJson(bind_data->response);
     SheetData sheet_data = getSheetData(cleanJson);
 
-    if (!sheet_data.values.empty()) {
-        idx_t start_index = header ? 1 : 0;
-        if (start_index < sheet_data.values.size()) {
-            const auto& first_data_row = sheet_data.values[start_index];
-            // If we have a header, we want the width of the result to be the max of:
-            //      the width of the header row
-            //      or the width of the first row of data
-            int result_width = first_data_row.size();
-            if (header) {
-                int header_width = sheet_data.values[0].size();
-                if (header_width > result_width) {
-                    result_width = header_width;
-                }
-            }
-            
-            for (size_t i = 0; i < result_width; i++) {
-                // Assign default column_name, but rename to header value if using a header and header cell exists
-                string column_name = "column" + std::to_string(i + 1);
-                if (header && (i < sheet_data.values[0].size())) {
-                    column_name = sheet_data.values[0][i];
-                }
-                names.push_back(column_name);
-                
-                const string& value = first_data_row[i];
-                if (value == "TRUE" || value == "FALSE") {
-                    return_types.push_back(LogicalType::BOOLEAN);
-                } else if (IsValidNumber(value)) {
-                    return_types.push_back(LogicalType::DOUBLE);
-                } else {
-                    return_types.push_back(LogicalType::VARCHAR);
-                }
-            }
+    // Prefering early return style to reduce nesting
+    if (sheet_data.values.empty()) {
+        return bind_data;
+    }
+    idx_t start_index = header ? 1 : 0;
+    if (start_index >= sheet_data.values.size()) {
+        return bind_data;
+    }
+
+    const auto& first_data_row = sheet_data.values[start_index];
+    // If we have a header, we want the width of the result to be the max of:
+    //      the width of the header row
+    //      or the width of the first row of data
+    int result_width = first_data_row.size();
+    if (header) {
+        int header_width = sheet_data.values[0].size();
+        if (header_width > result_width) {
+            result_width = header_width;
+        }
+    }
+    
+    for (size_t i = 0; i < result_width; i++) {
+        // Assign default column_name, but rename to header value if using a header and header cell exists
+        string column_name = "column" + std::to_string(i + 1);
+        if (header && (i < sheet_data.values[0].size())) {
+            column_name = sheet_data.values[0][i];
+        }
+        names.push_back(column_name);
+        
+        // If the first row has blanks, assume varchar for now
+        if (i >= first_data_row.size()) {
+            return_types.push_back(LogicalType::VARCHAR);
+            continue;
+        } 
+        const string& value = first_data_row[i];
+        if (value == "TRUE" || value == "FALSE") {
+            return_types.push_back(LogicalType::BOOLEAN);
+        } else if (IsValidNumber(value)) {
+            return_types.push_back(LogicalType::DOUBLE);
+        } else {
+            return_types.push_back(LogicalType::VARCHAR);
         }
     }
 
