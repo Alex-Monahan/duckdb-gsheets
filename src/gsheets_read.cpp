@@ -41,7 +41,7 @@ void ReadSheetFunction(ClientContext &context, TableFunctionInput &data_p, DataC
     if (bind_data.finished) {
         return;
     }
-
+    
     json cleanJson = parseJson(bind_data.response);
     SheetData sheet_data = getSheetData(cleanJson);
 
@@ -57,7 +57,7 @@ void ReadSheetFunction(ClientContext &context, TableFunctionInput &data_p, DataC
         const auto& first_data_row = sheet_data.values[start_index];
         for (idx_t col = 0; col < column_count && col < first_data_row.size(); col++) {
             const string& value = first_data_row[col];
-            if (value == "true" || value == "false") {
+            if (value == "TRUE" || value == "FALSE") {
                 column_types[col] = LogicalType::BOOLEAN;
             } else if (IsValidNumber(value)) {
                 column_types[col] = LogicalType::DOUBLE;
@@ -86,7 +86,12 @@ void ReadSheetFunction(ClientContext &context, TableFunctionInput &data_p, DataC
                         }
                         break;
                     default:
-                        output.SetValue(col, row_count, Value(value));
+                        // Empty strings should be converted to NULL
+                        if (value.empty()) {
+                            output.SetValue(col, row_count, Value(LogicalType::VARCHAR));
+                        } else {
+                            output.SetValue(col, row_count, Value(value));
+                        }
                         break;
                 }
             } else {
@@ -193,12 +198,27 @@ unique_ptr<FunctionData> ReadSheetBind(ClientContext &context, TableFunctionBind
         idx_t start_index = header ? 1 : 0;
         if (start_index < sheet_data.values.size()) {
             const auto& first_data_row = sheet_data.values[start_index];
-            for (size_t i = 0; i < first_data_row.size(); i++) {
-                string column_name = header ? sheet_data.values[0][i] : "column" + std::to_string(i + 1);
+            // If we have a header, we want the width of the result to be the max of:
+            //      the width of the header row
+            //      or the width of the first row of data
+            int result_width = first_data_row.size();
+            if (header) {
+                int header_width = sheet_data.values[0].size();
+                if (header_width > result_width) {
+                    result_width = header_width;
+                }
+            }
+            
+            for (size_t i = 0; i < result_width; i++) {
+                // Assign default column_name, but rename to header value if using a header and header cell exists
+                string column_name = "column" + std::to_string(i + 1);
+                if (header && (i < sheet_data.values[0].size())) {
+                    column_name = sheet_data.values[0][i];
+                }
                 names.push_back(column_name);
                 
                 const string& value = first_data_row[i];
-                if (value == "true" || value == "false") {
+                if (value == "TRUE" || value == "FALSE") {
                     return_types.push_back(LogicalType::BOOLEAN);
                 } else if (IsValidNumber(value)) {
                     return_types.push_back(LogicalType::DOUBLE);
