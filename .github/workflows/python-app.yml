@@ -24,7 +24,7 @@ jobs:
       uses: jsdaniell/create-json@v1.2.3
       with:
         name: "credentials.json"
-        json: ${{ secrets.DUMMY_JSON }}
+        json: ${{ secrets.GOOGLE_SHEETS_KEY_FILE }}
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -33,3 +33,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+    - name: Run Python script to convert file into token
+      run: |
+        python ci_scripts/set_env_vars_for_tests.py
