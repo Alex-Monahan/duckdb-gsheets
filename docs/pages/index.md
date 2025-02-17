@@ -143,7 +143,6 @@ This will also require an additional API request approximately every 30 minutes.
 
 - DuckDB WASM is not (yet) supported.
 - Google Sheets has a limit of 10,000,000 cells per spreadsheet.
-- Writing data to a sheet starting from a cell other than A1 is not yet supported.
 - Sheets must already exist to COPY TO them.
 
 ## Support 
